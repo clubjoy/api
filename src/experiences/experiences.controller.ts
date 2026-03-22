@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Patch,
+  Put,
   Param,
   Delete,
   Query,
@@ -61,6 +62,19 @@ export class ExperiencesController {
   @ApiOperation({ summary: 'Get all availability slots for an experience' })
   getAllAvailability(@Param('id') id: string) {
     return this.experiencesService.getAllAvailability(id);
+  }
+
+  @Put(':id/availability')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.HOST, Role.OWNER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update all availability slots for an experience' })
+  updateAvailability(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() availability: any[],
+  ) {
+    return this.experiencesService.updateAvailability(id, user.id, availability);
   }
 
   @Get(':id/availability')

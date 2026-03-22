@@ -513,6 +513,46 @@ export class ExperiencesService {
     return slots;
   }
 
+  async updateAvailability(experienceId: string, hostId: string, availability: any[]) {
+    // Verify ownership
+    const experience = await this.prisma.experience.findUnique({
+      where: { id: experienceId },
+    });
+
+    if (!experience || experience.deletedAt) {
+      throw new NotFoundException('Experience not found');
+    }
+
+    if (experience.hostId !== hostId) {
+      throw new ForbiddenException('You can only edit your own experiences');
+    }
+
+    // Delete all existing availability slots
+    await this.prisma.availability.deleteMany({
+      where: { experienceId },
+    });
+
+    // Create new availability slots
+    if (availability && availability.length > 0) {
+      await this.prisma.availability.createMany({
+        data: availability.map((slot, index) => ({
+          experienceId,
+          // For recurring patterns without a specific date, use a far future date + index to avoid conflicts
+          date: slot.date ? new Date(slot.date) : new Date(2099, 0, 1 + index),
+          startTime: slot.startTime,
+          slots: slot.slots,
+          price: slot.price ? parseFloat(slot.price.toString()) : null,
+          isRecurring: slot.isRecurring || false,
+          recurringDays: slot.recurringDays || slot.days || [],
+          recurringUntil: slot.recurringUntil ? new Date(slot.recurringUntil) : null,
+          isPaused: slot.isPaused || false,
+        })),
+      });
+    }
+
+    return this.getAllAvailability(experienceId);
+  }
+
   async getAvailability(experienceId: string, dateString: string) {
     const date = new Date(dateString);
     const dayOfWeek = date.getDay(); // 0=Sunday, 1=Monday, etc.
