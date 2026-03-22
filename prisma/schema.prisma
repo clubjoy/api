@@ -150,6 +150,7 @@ model Experience {
   approvedAt      DateTime?
   approvedBy      String? // User ID of approver
   rejectionReason String?
+  changeLog       Json?    // Track what changed when HOST edits PUBLISHED experience
 
   // Timestamps
   createdAt DateTime  @default(now())

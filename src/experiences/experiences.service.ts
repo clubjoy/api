@@ -338,6 +338,7 @@ export class ExperiencesService {
   async update(id: string, hostId: string, dto: UpdateExperienceDto) {
     const experience = await this.prisma.experience.findUnique({
       where: { id },
+      include: { host: true },
     });
 
     if (!experience || experience.deletedAt) {
@@ -348,17 +349,52 @@ export class ExperiencesService {
       throw new ForbiddenException('You can only edit your own experiences');
     }
 
-    // Allow editing of all experiences
-    // If editing a PUBLISHED or APPROVED experience, it will remain in that status
-    // Hosts can update their experiences at any time
+    // Get user to check role
+    const user = await this.prisma.user.findUnique({
+      where: { id: hostId },
+    });
+
+    // If HOST edits a PUBLISHED experience, send it back to PENDING_APPROVAL with change tracking
+    let newStatus = experience.status;
+    let changeLog = null;
+
+    if (user?.role === 'HOST' && experience.status === ExperienceStatus.PUBLISHED) {
+      newStatus = ExperienceStatus.PENDING_APPROVAL;
+
+      // Track what changed
+      const changes: any = {};
+      Object.keys(dto).forEach(key => {
+        if (dto[key] !== undefined && JSON.stringify(experience[key]) !== JSON.stringify(dto[key])) {
+          changes[key] = {
+            old: experience[key],
+            new: dto[key],
+          };
+        }
+      });
+
+      changeLog = {
+        changes,
+        editedAt: new Date(),
+        editedBy: hostId,
+      };
+    }
 
     const updated = await this.prisma.experience.update({
       where: { id },
       data: {
         ...dto,
         coverImage: dto.coverImage || dto.images?.[0],
+        status: newStatus,
+        changeLog: changeLog || experience.changeLog,
+        submittedAt: newStatus === ExperienceStatus.PENDING_APPROVAL ? new Date() : experience.submittedAt,
       },
+      include: { host: true },
     });
+
+    // Notify admin if experience needs re-approval
+    if (newStatus === ExperienceStatus.PENDING_APPROVAL && experience.status === ExperienceStatus.PUBLISHED) {
+      this.notifications.sendExperienceSubmitted(updated);
+    }
 
     return updated;
   }
@@ -420,6 +456,7 @@ export class ExperiencesService {
         status: ExperienceStatus.PUBLISHED,
         approvedAt: new Date(),
         approvedBy: ownerId,
+        changeLog: null, // Clear change log after approval
       },
       include: { host: true },
     });
