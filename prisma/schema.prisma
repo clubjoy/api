@@ -1,0 +1,497 @@
+// ClubJoys Marketplace Platform
+// PostgreSQL + Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum Role {
+  USER   // Customer
+  HOST   // Experience provider
+  OWNER  // Admin
+}
+
+enum Language {
+  en
+  it
+  es
+  de
+}
+
+enum ExperienceStatus {
+  DRAFT
+  PENDING_APPROVAL
+  PUBLISHED
+  REJECTED
+  ARCHIVED
+}
+
+enum BookingStatus {
+  PENDING    // Waiting for host acceptance
+  ACCEPTED   // Host accepted (within 24h)
+  REJECTED   // Host rejected or 24h expired
+  CONFIRMED  // Payment processed
+  CANCELLED  // Cancelled by user or host
+  COMPLETED  // Experience happened
+  REFUNDED   // Payment refunded
+}
+
+enum PaymentProvider {
+  STRIPE
+  PAYPAL
+  SATISPAY
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum RescheduleStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum GiftCardStatus {
+  ACTIVE      // Available for use
+  REDEEMED    // Fully used
+  EXPIRED     // Past expiration date
+  CANCELLED   // Cancelled by admin
+}
+
+// ============================================================================
+// MODELS
+// ============================================================================
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(USER)
+  firstName    String
+  lastName     String
+  avatar       String?
+  phone        String?
+  locale       String   @default("en")
+  bio          String?
+
+  // Host management fields
+  isBlocked       Boolean   @default(false)
+  blockReason     String?
+  blockedAt       DateTime?
+  blockedBy       String?   // User ID of admin who blocked
+  isProfilePublic Boolean   @default(true)
+
+  // Timestamps
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  hostedExperiences  Experience[] @relation("HostExperiences")
+  bookings           Booking[]
+  messages           Message[]
+  reviews            Review[]
+  purchasedGiftCards GiftCard[]   @relation("PurchasedGiftCards")
+
+  @@index([email])
+  @@index([role])
+  @@index([isBlocked])
+  @@map("users")
+}
+
+model Experience {
+  id          String            @id @default(cuid())
+  title       String
+  slug        String            @unique
+  description String            @db.Text
+  price       Decimal           @db.Decimal(10, 2)
+  currency    String            @default("EUR")
+  duration    Int               // minutes
+  maxGuests   Int
+  minGuests   Int               @default(1)
+  status      ExperienceStatus  @default(DRAFT)
+
+  // Location
+  location  String
+  latitude  Decimal? @db.Decimal(10, 7)
+  longitude Decimal? @db.Decimal(10, 7)
+  address   String?
+  city      String?
+  country   String?
+
+  // Media
+  images     String[] // Array of image URLs
+  coverImage String?
+
+  // Metadata
+  category String
+  tags     String[]
+
+  // Ownership
+  hostId String
+  host   User   @relation("HostExperiences", fields: [hostId], references: [id])
+
+  // Approval workflow
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  approvedBy      String? // User ID of approver
+  rejectionReason String?
+
+  // Timestamps
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  bookings              Booking[]
+  reviews               Review[]
+  availability          Availability[]
+  translations          ExperienceTranslation[]
+  collectionExperiences CollectionExperience[]
+
+  @@index([hostId])
+  @@index([status])
+  @@index([slug])
+  @@index([category])
+  @@index([latitude, longitude])
+  @@index([status, latitude, longitude])
+  @@map("experiences")
+}
+
+model ExperienceTranslation {
+  id           String     @id @default(cuid())
+  experienceId String
+  experience   Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+  language     Language
+  title        String
+  description  String     @db.Text
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([experienceId, language])
+  @@index([language])
+  @@map("experience_translations")
+}
+
+model Booking {
+  id            String        @id @default(cuid())
+  bookingNumber String        @unique // Human-readable ID (e.g., "CJ-2026-001234")
+
+  // Relationships
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+  experienceId String
+  experience   Experience @relation(fields: [experienceId], references: [id])
+
+  // Booking details
+  status     BookingStatus @default(PENDING)
+  startDate  DateTime
+  endDate    DateTime
+  guests     Int
+  totalPrice Decimal       @db.Decimal(10, 2)
+  currency   String        @default("EUR")
+
+  // Special requests
+  specialRequests String?
+
+  // Lifecycle timestamps
+  createdAt  DateTime  @default(now())
+  acceptedAt DateTime? // Must be within 24h of createdAt
+  rejectedAt DateTime?
+  confirmedAt DateTime?
+  cancelledAt DateTime?
+  completedAt DateTime?
+
+  // Cancellation/rejection reasons
+  cancellationReason String?
+  rejectionReason    String?
+
+  // Relations
+  payment            Payment?
+  messages           Message[]
+  review             Review?
+  rescheduleRequests RescheduleRequest[]
+  bookingGiftCards   BookingGiftCard[]
+
+  @@index([userId])
+  @@index([experienceId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([startDate])
+  @@index([userId, status, startDate])
+  @@index([status, experienceId, startDate])
+  @@map("bookings")
+}
+
+model Payment {
+  id       String          @id @default(cuid())
+  bookingId String         @unique
+  booking  Booking         @relation(fields: [bookingId], references: [id])
+
+  provider PaymentProvider
+  amount   Decimal         @db.Decimal(10, 2)
+  currency String          @default("EUR")
+  status   PaymentStatus   @default(PENDING)
+
+  // Provider details
+  transactionId   String? @unique
+  paymentIntentId String?
+  metadata        Json?   // Provider-specific metadata
+
+  // Refund
+  refundedAt   DateTime?
+  refundReason String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([bookingId])
+  @@index([status])
+  @@index([transactionId])
+  @@map("payments")
+}
+
+model Message {
+  id String @id @default(cuid())
+
+  senderId String
+  sender   User   @relation(fields: [senderId], references: [id])
+
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  content String @db.Text
+  read    Boolean  @default(false)
+  readAt  DateTime?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  @@index([bookingId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@index([bookingId, createdAt])
+  @@map("messages")
+}
+
+model Review {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  experienceId String
+  experience   Experience @relation(fields: [experienceId], references: [id])
+
+  bookingId String  @unique
+  booking   Booking @relation(fields: [bookingId], references: [id])
+
+  rating  Int     // 1-5
+  comment String? @db.Text
+
+  // Host response
+  hostResponse String?   @db.Text
+  respondedAt  DateTime?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([experienceId])
+  @@index([rating])
+  @@index([userId])
+  @@map("reviews")
+}
+
+model Availability {
+  id String @id @default(cuid())
+
+  experienceId String
+  experience   Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+
+  date      DateTime @db.Date
+  startTime String   // Time in HH:mm format (e.g., "10:00", "14:30")
+  slots     Int      // Available slots for this time slot
+  price     Decimal? @db.Decimal(10, 2) // Override default price if needed
+
+  // Recurring pattern (optional)
+  isRecurring    Boolean   @default(false)
+  recurringDays  Int[]     @default([]) // Day of week: 0=Sunday, 1=Monday, ..., 6=Saturday
+  recurringUntil DateTime? @db.Date // End date for recurring pattern
+
+  // Status
+  isPaused Boolean @default(false)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([experienceId, date, startTime])
+  @@index([experienceId, date])
+  @@index([experienceId, isRecurring])
+  @@map("availability")
+}
+
+model RescheduleRequest {
+  id String @id @default(cuid())
+
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id])
+
+  oldDate     DateTime
+  newDate     DateTime
+  requestedBy String   // 'USER' or 'HOST'
+  reason      String?  @db.Text
+  status      RescheduleStatus @default(PENDING)
+
+  // Response
+  rejectionReason String?
+
+  // Timestamps
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+
+  @@index([bookingId])
+  @@index([status])
+  @@map("reschedule_requests")
+}
+
+model Collection {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  description String   @db.Text
+  coverImage  String?
+
+  isPublished Boolean  @default(false)
+  sortOrder   Int      @default(0) // For ordering on homepage
+
+  // Timestamps
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  collectionExperiences CollectionExperience[]
+  translations          CollectionTranslation[]
+
+  @@index([slug])
+  @@index([isPublished])
+  @@index([sortOrder])
+  @@map("collections")
+}
+
+model CollectionExperience {
+  id String @id @default(cuid())
+
+  collectionId String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  experienceId String
+  experience   Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+
+  sortOrder Int @default(0) // For ordering within collection
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  @@unique([collectionId, experienceId])
+  @@index([collectionId])
+  @@index([experienceId])
+  @@map("collection_experiences")
+}
+
+model CollectionTranslation {
+  id String @id @default(cuid())
+
+  collectionId String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  language    Language
+  title       String
+  description String   @db.Text
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([collectionId, language])
+  @@index([language])
+  @@map("collection_translations")
+}
+
+model GiftCard {
+  id   String         @id @default(cuid())
+  code String         @unique // Unique redemption code (e.g., "CJ-GIFT-ABC123")
+
+  // Amount
+  originalAmount   Decimal          @db.Decimal(10, 2)
+  remainingBalance Decimal          @db.Decimal(10, 2)
+  currency         String           @default("EUR")
+
+  // Status
+  status GiftCardStatus @default(ACTIVE)
+
+  // Purchase details
+  purchasedBy    String?  // User ID who purchased
+  purchaser      User?    @relation("PurchasedGiftCards", fields: [purchasedBy], references: [id])
+  recipientEmail String?
+  recipientName  String?
+  message        String?  @db.Text
+
+  // Payment
+  paymentId String? // Link to payment record
+
+  // Expiration
+  expiresAt DateTime
+
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  redeemedAt  DateTime? // When fully redeemed
+  cancelledAt DateTime? // When cancelled by admin
+
+  // Relations
+  bookingGiftCards BookingGiftCard[]
+
+  @@index([code])
+  @@index([status])
+  @@index([purchasedBy])
+  @@index([expiresAt])
+  @@map("gift_cards")
+}
+
+model BookingGiftCard {
+  id String @id @default(cuid())
+
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id])
+
+  giftCardId String
+  giftCard   GiftCard @relation(fields: [giftCardId], references: [id])
+
+  amountUsed Decimal @db.Decimal(10, 2)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  @@index([bookingId])
+  @@index([giftCardId])
+  @@map("booking_gift_cards")
+}
