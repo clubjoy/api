@@ -68,4 +68,33 @@ export class HostApplicationsService {
       where: { id },
     });
   }
+
+  async updateStatus(id: string, status: string, rejectionNotes?: string) {
+    const application = await this.prisma.hostApplication.update({
+      where: { id },
+      data: {
+        status: status as any,
+        rejectionNotes,
+        reviewedAt: new Date(),
+      },
+    });
+
+    // Send notification email to applicant
+    try {
+      await this.notifications.sendEmail({
+        to: application.email,
+        subject: `Host Application ${status}`,
+        template: 'host-application-status',
+        context: {
+          firstName: application.firstName,
+          status,
+          rejectionNotes,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to send notification email:', error);
+    }
+
+    return application;
+  }
 }

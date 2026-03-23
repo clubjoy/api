@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Query } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, Patch } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { HostApplicationsService } from './host-applications.service';
 import { CreateHostApplicationDto } from './dto';
@@ -24,5 +24,14 @@ export class HostApplicationsController {
   @ApiOperation({ summary: 'Get a specific host application (admin only in production)' })
   findOne(@Param('id') id: string) {
     return this.hostApplicationsService.findOne(id);
+  }
+
+  @Patch(':id/status')
+  @ApiOperation({ summary: 'Update host application status (admin only in production)' })
+  updateStatus(
+    @Param('id') id: string,
+    @Body() dto: { status: string; rejectionNotes?: string }
+  ) {
+    return this.hostApplicationsService.updateStatus(id, dto.status, dto.rejectionNotes);
   }
 }
