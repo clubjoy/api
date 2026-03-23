@@ -22,6 +22,11 @@ export class SearchExperiencesDto {
   @IsOptional()
   category?: string;
 
+  @ApiProperty({ required: false, example: 'Florence', description: 'Search by city or country name' })
+  @IsString()
+  @IsOptional()
+  location?: string;
+
   @ApiProperty({ required: false, example: 0 })
   @IsNumber()
   @IsOptional()

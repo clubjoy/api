@@ -100,6 +100,7 @@ export class ExperiencesService {
     const {
       query,
       category,
+      location,
       minPrice,
       maxPrice,
       latitude,
@@ -140,6 +141,16 @@ export class ExperiencesService {
     // Category filter
     if (category) {
       where.category = category;
+    }
+
+    // Location text search (city or country)
+    if (location) {
+      where.OR = [
+        ...(where.OR || []),
+        { city: { contains: location, mode: 'insensitive' } },
+        { country: { contains: location, mode: 'insensitive' } },
+        { location: { contains: location, mode: 'insensitive' } },
+      ];
     }
 
     // Price range
