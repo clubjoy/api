@@ -72,6 +72,13 @@ enum GiftCardStatus {
   CANCELLED   // Cancelled by admin
 }
 
+enum HostApplicationStatus {
+  PENDING     // Submitted, awaiting review
+  CONTACTED   // Owner has contacted the applicant
+  APPROVED    // Approved and user upgraded to HOST
+  REJECTED    // Application rejected
+}
+
 // ============================================================================
 // MODELS
 // ============================================================================
@@ -495,4 +502,38 @@ model BookingGiftCard {
   @@index([bookingId])
   @@index([giftCardId])
   @@map("booking_gift_cards")
+}
+
+model HostApplication {
+  id String @id @default(cuid())
+
+  // Personal Information
+  firstName   String
+  lastName    String
+  companyName String?
+  postalCode  String
+
+  // Contact Information
+  email   String
+  phone   String
+  website String?
+
+  // Experience Information
+  workshopsOffered String @db.Text
+  daysAndHours     String @db.Text
+
+  // Application Status
+  status         HostApplicationStatus @default(PENDING)
+  locale         String                @default("en")
+  rejectionNotes String?               @db.Text
+
+  // Timestamps
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  reviewedAt DateTime?
+
+  @@index([status])
+  @@index([email])
+  @@index([createdAt])
+  @@map("host_applications")
 }

@@ -13,6 +13,7 @@ import { ReviewsModule } from './reviews/reviews.module';
 import { MessagesModule } from './messages/messages.module';
 import { GiftCardsModule } from './gift-cards/gift-cards.module';
 import { CollectionsModule } from './collections/collections.module';
+import { HostApplicationsModule } from './host-applications/host-applications.module';
 import { HealthModule } from './health/health.module';
 
 @Module({
@@ -46,6 +47,7 @@ import { HealthModule } from './health/health.module';
     MessagesModule,
     GiftCardsModule,
     CollectionsModule,
+    HostApplicationsModule,
     HealthModule,
   ],
   controllers: [],
