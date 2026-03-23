@@ -19,10 +19,19 @@ import { Role } from '@prisma/client';
 
 @ApiTags('users')
 @Controller('users')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@ApiBearerAuth()
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  // Public endpoints (no auth required)
+  @Get('hosts/:id/public')
+  @ApiOperation({ summary: 'Get public host profile by ID' })
+  getHostPublicProfile(@Param('id') id: string) {
+    return this.usersService.getHostPublicProfile(id);
+  }
+
+  // Protected endpoints (auth required)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth()
 
   @Post()
   @Roles(Role.OWNER)

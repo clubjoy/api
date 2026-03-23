@@ -180,6 +180,56 @@ export class UsersService {
     return host;
   }
 
+  async getHostPublicProfile(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        hostedExperiences: {
+          where: {
+            deletedAt: null,
+            status: 'PUBLISHED',
+          },
+          select: {
+            id: true,
+            slug: true,
+            title: true,
+            description: true,
+            price: true,
+            currency: true,
+            duration: true,
+            maxGuests: true,
+            location: true,
+            city: true,
+            country: true,
+            coverImage: true,
+            category: true,
+            averageRating: true,
+            reviewCount: true,
+          },
+        },
+      },
+    });
+
+    if (!user || user.deletedAt) {
+      throw new NotFoundException('Host not found');
+    }
+
+    if (user.role !== Role.HOST) {
+      throw new NotFoundException('User is not a host');
+    }
+
+    // Return only public information
+    return {
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      avatar: user.avatar,
+      bio: user.bio,
+      createdAt: user.createdAt,
+      hostedExperiences: user.hostedExperiences,
+    };
+  }
+
   private sanitizeUser(user: any) {
     const { passwordHash, ...sanitized } = user;
     return sanitized;
