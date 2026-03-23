@@ -345,14 +345,15 @@ export class ExperiencesService {
       throw new NotFoundException('Experience not found');
     }
 
-    if (experience.hostId !== hostId) {
-      throw new ForbiddenException('You can only edit your own experiences');
-    }
-
     // Get user to check role
     const user = await this.prisma.user.findUnique({
       where: { id: hostId },
     });
+
+    // Only check ownership if user is not OWNER (OWNER can edit all experiences)
+    if (user?.role !== 'OWNER' && experience.hostId !== hostId) {
+      throw new ForbiddenException('You can only edit your own experiences');
+    }
 
     // If HOST edits a PUBLISHED experience, send it back to PENDING_APPROVAL with change tracking
     let newStatus = experience.status;
@@ -505,7 +506,13 @@ export class ExperiencesService {
       throw new NotFoundException('Experience not found');
     }
 
-    if (experience.hostId !== hostId) {
+    // Get user to check role
+    const user = await this.prisma.user.findUnique({
+      where: { id: hostId },
+    });
+
+    // Only check ownership if user is not OWNER (OWNER can delete all experiences)
+    if (user?.role !== 'OWNER' && experience.hostId !== hostId) {
       throw new ForbiddenException('You can only delete your own experiences');
     }
 
@@ -560,7 +567,13 @@ export class ExperiencesService {
       throw new NotFoundException('Experience not found');
     }
 
-    if (experience.hostId !== hostId) {
+    // Get user to check role
+    const user = await this.prisma.user.findUnique({
+      where: { id: hostId },
+    });
+
+    // Only check ownership if user is not OWNER (OWNER can edit all experiences)
+    if (user?.role !== 'OWNER' && experience.hostId !== hostId) {
       throw new ForbiddenException('You can only edit your own experiences');
     }
 
