@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsNumber, IsOptional, Min, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ExperienceStatus } from '@prisma/client';
 
 export enum SortBy {
   POPULAR = 'popular',
@@ -69,4 +70,9 @@ export class SearchExperiencesDto {
   @Min(1)
   @Type(() => Number)
   limit?: number;
+
+  @ApiProperty({ enum: ExperienceStatus, required: false })
+  @IsEnum(ExperienceStatus)
+  @IsOptional()
+  status?: ExperienceStatus;
 }
