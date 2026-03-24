@@ -15,6 +15,7 @@ import { GiftCardsModule } from './gift-cards/gift-cards.module';
 import { CollectionsModule } from './collections/collections.module';
 import { HostApplicationsModule } from './host-applications/host-applications.module';
 import { HealthModule } from './health/health.module';
+import { StripeModule } from './stripe/stripe.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { HealthModule } from './health/health.module';
     CollectionsModule,
     HostApplicationsModule,
     HealthModule,
+    StripeModule,
   ],
   controllers: [],
   providers: [],

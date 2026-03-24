@@ -51,6 +51,18 @@ export class GiftCardsController {
     return this.giftCardsService.getUserGiftCards(req.user.userId);
   }
 
+  @Post('generate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.OWNER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Generate a gift card (Admin only)' })
+  async generate(@Body() dto: PurchaseGiftCardDto, @Request() req) {
+    return this.giftCardsService.purchase({
+      ...dto,
+      purchasedBy: req.user.userId,
+    });
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.OWNER)

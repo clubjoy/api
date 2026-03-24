@@ -259,7 +259,7 @@ model Payment {
 
   // Provider details
   transactionId   String? @unique
-  paymentIntentId String?
+  paymentIntentId String? @unique
   metadata        Json?   // Provider-specific metadata
 
   // Refund
@@ -273,6 +273,7 @@ model Payment {
   @@index([bookingId])
   @@index([status])
   @@index([transactionId])
+  @@index([paymentIntentId])
   @@map("payments")
 }
 
