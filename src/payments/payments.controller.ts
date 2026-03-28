@@ -3,20 +3,19 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto, RefundPaymentDto, CreatePaymentIntentDto } from './dto';
-import { JwtAuthGuard, RolesGuard } from '../auth/guards';
+import { JwtAuthGuard, RolesGuard, OptionalJwtAuthGuard } from '../auth/guards';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 
 @ApiTags('payments')
 @Controller('payments')
-@UseGuards(JwtAuthGuard)
-@ApiBearerAuth()
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Get()
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth()
   @Roles(Role.OWNER)
   @ApiOperation({ summary: 'Get all payments (OWNER only)' })
   findAll(
@@ -28,33 +27,43 @@ export class PaymentsController {
   }
 
   @Post('process')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Process a payment (MOCKED)' })
   processPayment(@Body() dto: CreatePaymentDto) {
     return this.paymentsService.processPayment(dto);
   }
 
   @Post('refund')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Refund a payment (MOCKED)' })
   refundPayment(@Body() dto: RefundPaymentDto) {
     return this.paymentsService.refundPayment(dto);
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get payment details' })
   findOne(@Param('id') id: string) {
     return this.paymentsService.findOne(id);
   }
 
   @Get('booking/:bookingId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get payment by booking ID' })
   findByBooking(@Param('bookingId') bookingId: string) {
     return this.paymentsService.findByBooking(bookingId);
   }
 
   @Post('create-payment-intent')
-  @ApiOperation({ summary: 'Create a Stripe payment intent for a booking' })
-  createPaymentIntent(@Body() dto: CreatePaymentIntentDto, @CurrentUser() user: any) {
-    return this.paymentsService.createPaymentIntent(dto, user.id);
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: 'Create a Stripe payment intent for a booking - supports guest checkout' })
+  createPaymentIntent(@Body() dto: CreatePaymentIntentDto, @Req() req: any) {
+    const user = req.user;
+    return this.paymentsService.createPaymentIntent(dto, user?.id);
   }
 
   @Get('config')

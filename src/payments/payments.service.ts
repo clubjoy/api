@@ -176,8 +176,8 @@ Status: PROCESSING -> COMPLETED
   /**
    * Create a Stripe payment intent for a booking
    */
-  async createPaymentIntent(dto: CreatePaymentIntentDto, userId: string) {
-    // Verify booking exists and belongs to user
+  async createPaymentIntent(dto: CreatePaymentIntentDto, userId?: string) {
+    // Verify booking exists
     const booking = await this.prisma.booking.findUnique({
       where: { id: dto.bookingId },
       include: {
@@ -192,8 +192,17 @@ Status: PROCESSING -> COMPLETED
       throw new NotFoundException('Booking not found');
     }
 
-    if (booking.userId !== userId) {
-      throw new BadRequestException('You can only create payment intents for your own bookings');
+    // For guest checkout, store the guest email in payment metadata
+    // For authenticated users, verify they own the booking
+    if (userId) {
+      if (booking.userId !== userId) {
+        throw new BadRequestException('You can only create payment intents for your own bookings');
+      }
+    } else {
+      // Guest checkout - require guest email
+      if (!dto.guestEmail) {
+        throw new BadRequestException('Guest email is required for guest checkout');
+      }
     }
 
     // Check booking status - allow ACCEPTED bookings for payment
@@ -240,6 +249,17 @@ Status: PROCESSING -> COMPLETED
       description: `Booking ${booking.bookingNumber} - ${booking.experience.title}`,
     });
 
+    // Prepare metadata - include guest email if provided
+    const metadata: any = {
+      stripePaymentIntent: paymentIntent.id,
+      clientSecret: paymentIntent.client_secret,
+    };
+
+    if (dto.guestEmail) {
+      metadata.guestEmail = dto.guestEmail;
+      metadata.isGuestCheckout = true;
+    }
+
     // Create or update payment record
     const payment = existingPayment
       ? await this.prisma.payment.update({
@@ -249,10 +269,7 @@ Status: PROCESSING -> COMPLETED
             amount,
             currency,
             status: 'PENDING',
-            metadata: {
-              stripePaymentIntent: paymentIntent.id,
-              clientSecret: paymentIntent.client_secret,
-            },
+            metadata,
           },
         })
       : await this.prisma.payment.create({
@@ -263,10 +280,7 @@ Status: PROCESSING -> COMPLETED
             currency,
             status: 'PENDING',
             paymentIntentId: paymentIntent.id,
-            metadata: {
-              stripePaymentIntent: paymentIntent.id,
-              clientSecret: paymentIntent.client_secret,
-            },
+            metadata,
           },
         });
 
@@ -308,6 +322,23 @@ Status: PROCESSING -> COMPLETED
     // Retrieve payment intent from Stripe
     const paymentIntent = await this.stripe.retrievePaymentIntent(paymentIntentId);
 
+    // Check if this is a guest checkout
+    const metadata = payment.metadata as any;
+    const isGuestCheckout = metadata?.isGuestCheckout;
+    const guestEmail = metadata?.guestEmail;
+
+    // If guest checkout, create or find user account
+    let userId = payment.booking.userId;
+    if (isGuestCheckout && guestEmail) {
+      userId = await this.handleGuestCheckout(guestEmail, payment.booking);
+
+      // Update booking with the user ID
+      await this.prisma.booking.update({
+        where: { id: payment.bookingId },
+        data: { userId },
+      });
+    }
+
     // Update payment status
     await this.prisma.payment.update({
       where: { id: payment.id },
@@ -337,6 +368,56 @@ Status: PROCESSING -> COMPLETED
     this.logger.log(`Payment completed for booking ${payment.booking.bookingNumber}`);
 
     return payment;
+  }
+
+  /**
+   * Handle guest checkout by creating or finding user account
+   */
+  private async handleGuestCheckout(email: string, booking: any): Promise<string> {
+    // Check if user already exists with this email
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      this.logger.log(`Guest checkout: User already exists with email ${email}`);
+      return existingUser.id;
+    }
+
+    // Generate a random password
+    const bcrypt = require('bcrypt');
+    const randomPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
+    const hashedPassword = await bcrypt.hash(randomPassword, 10);
+
+    // Extract name from booking or use default
+    const firstName = booking.user?.firstName || 'Guest';
+    const lastName = booking.user?.lastName || 'User';
+
+    // Create new user account
+    const newUser = await this.prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        firstName,
+        lastName,
+        role: 'USER',
+        emailVerified: true, // Auto-verify for guest checkout
+      },
+    });
+
+    this.logger.log(`Guest checkout: Created new user account for ${email}`);
+
+    // TODO: Send welcome email with credentials
+    // For now, just log it
+    this.logger.log(`
+      ===== GUEST ACCOUNT CREATED =====
+      Email: ${email}
+      Password: ${randomPassword}
+      Please send welcome email to user
+      =================================
+    `);
+
+    return newUser.id;
   }
 
   /**

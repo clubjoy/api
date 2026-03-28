@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, Min } from 'class-validator';
+import { IsString, IsNumber, IsOptional, Min, IsEmail } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreatePaymentIntentDto {
@@ -15,4 +15,9 @@ export class CreatePaymentIntentDto {
   @IsString()
   @IsOptional()
   currency?: string;
+
+  @ApiProperty({ description: 'Guest email for guest checkout', required: false })
+  @IsEmail()
+  @IsOptional()
+  guestEmail?: string;
 }

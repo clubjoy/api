@@ -179,7 +179,7 @@ export class BookingsService {
     return bookings;
   }
 
-  async findOne(id: string, userId: string, userRole: string) {
+  async findOne(id: string, userId?: string, userRole?: string) {
     const booking = await this.prisma.booking.findUnique({
       where: { id },
       include: {
@@ -202,7 +202,16 @@ export class BookingsService {
       throw new NotFoundException('Booking not found');
     }
 
-    // Check authorization
+    // Allow guest access for payment purposes (when userId is not provided)
+    // Guests can only view ACCEPTED or CONFIRMED bookings
+    if (!userId) {
+      if (booking.status === 'ACCEPTED' || booking.status === 'CONFIRMED' || booking.status === 'PENDING') {
+        return booking;
+      }
+      throw new ForbiddenException('You do not have access to this booking');
+    }
+
+    // Check authorization for authenticated users
     const isOwner = booking.userId === userId;
     const isHost = booking.experience.hostId === userId;
     const isAdmin = userRole === 'OWNER';

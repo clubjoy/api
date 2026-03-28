@@ -249,8 +249,11 @@ export class StripeService {
       });
 
       // Create promotion code
-      const promotionCode = await (this.stripe.promotionCodes as any).create({
-        coupon: coupon.id,
+      const promotionCode = await this.stripe.promotionCodes.create({
+        promotion: {
+          type: 'coupon',
+          coupon: coupon.id,
+        },
         code: params.code.toUpperCase(),
       });
 
