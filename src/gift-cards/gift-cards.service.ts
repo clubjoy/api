@@ -366,13 +366,21 @@ export class GiftCardsService {
     const redemptionRate =
       totalGiftCards > 0 ? (redeemedCards / totalGiftCards) * 100 : 0;
 
+    // Convert Decimal to number for proper JSON serialization
+    const totalPurchasedAmount = totalPurchased._sum.originalAmount
+      ? Number(totalPurchased._sum.originalAmount)
+      : 0;
+    const totalRedeemedAmount = totalRedeemed._sum.amountUsed
+      ? Number(totalRedeemed._sum.amountUsed)
+      : 0;
+
     return {
       totalGiftCards,
       activeCards,
       redeemedCards,
       expiredCards,
-      totalPurchased: totalPurchased._sum.originalAmount || 0,
-      totalRedeemed: totalRedeemed._sum.amountUsed || 0,
+      totalPurchased: totalPurchasedAmount,
+      totalRedeemed: totalRedeemedAmount,
       redemptionRate: Math.round(redemptionRate * 10) / 10,
     };
   }

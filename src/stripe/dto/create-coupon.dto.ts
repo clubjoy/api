@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, IsEnum, IsDateString, Min, Max } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsEnum, IsDateString, Min, Max, ValidateIf } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateCouponDto {
@@ -11,17 +11,20 @@ export class CreateCouponDto {
   @IsNumber()
   @Min(0)
   @Max(100)
+  @ValidateIf((o) => !o.amountOff)
   percentOff?: number;
 
   @ApiPropertyOptional({ description: 'Fixed amount discount', example: 10 })
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @ValidateIf((o) => !o.percentOff)
   amountOff?: number;
 
-  @ApiPropertyOptional({ description: 'Currency for amount discount', example: 'EUR' })
+  @ApiPropertyOptional({ description: 'Currency for amount discount (required if amountOff is specified)', example: 'EUR' })
   @IsOptional()
   @IsString()
+  @ValidateIf((o) => o.amountOff)
   currency?: string;
 
   @ApiPropertyOptional({ description: 'Duration type', enum: ['once', 'repeating', 'forever'], example: 'once' })
@@ -32,6 +35,7 @@ export class CreateCouponDto {
   @ApiPropertyOptional({ description: 'Duration in months (for repeating)', example: 3 })
   @IsOptional()
   @IsNumber()
+  @ValidateIf((o) => o.duration === 'repeating')
   durationInMonths?: number;
 
   @ApiPropertyOptional({ description: 'Maximum number of redemptions', example: 100 })

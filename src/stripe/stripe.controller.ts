@@ -6,6 +6,7 @@ import {
   Param,
   Query,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { StripeService } from './stripe.service';
@@ -71,6 +72,21 @@ export class StripeController {
   @Roles('OWNER')
   @ApiOperation({ summary: 'Create a coupon/promotion code (OWNER only)' })
   createCoupon(@Body() dto: CreateCouponDto) {
+    // Validate that at least one discount type is provided
+    if (!dto.percentOff && !dto.amountOff) {
+      throw new BadRequestException('Either percentOff or amountOff must be provided');
+    }
+
+    // Validate currency is provided when amountOff is used
+    if (dto.amountOff && !dto.currency) {
+      throw new BadRequestException('Currency is required when amountOff is specified');
+    }
+
+    // Validate durationInMonths is provided when duration is repeating
+    if (dto.duration === 'repeating' && !dto.durationInMonths) {
+      throw new BadRequestException('durationInMonths is required when duration is repeating');
+    }
+
     return this.stripeService.createCoupon({
       code: dto.code,
       percentOff: dto.percentOff,
