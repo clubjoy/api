@@ -392,4 +392,52 @@ Status: PROCESSING -> COMPLETED
       },
     });
   }
+
+  async findAll(params?: {
+    status?: string;
+    skip?: number;
+    take?: number;
+  }) {
+    const where: any = {};
+
+    if (params?.status) {
+      where.status = params.status;
+    }
+
+    const [payments, total] = await Promise.all([
+      this.prisma.payment.findMany({
+        where,
+        skip: params?.skip || 0,
+        take: params?.take || 100,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          booking: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                },
+              },
+              experience: {
+                select: {
+                  id: true,
+                  title: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.payment.count({ where }),
+    ]);
+
+    return {
+      data: payments,
+      total,
+      hasMore: (params?.skip || 0) + (params?.take || 100) < total,
+    };
+  }
 }

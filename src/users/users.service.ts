@@ -203,8 +203,6 @@ export class UsersService {
             country: true,
             coverImage: true,
             category: true,
-            averageRating: true,
-            reviewCount: true,
           },
         },
       },

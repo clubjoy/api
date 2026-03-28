@@ -317,4 +317,25 @@ ClubJoys Team
 ====================================
     `);
   }
+
+  // Generic email sender for host applications, gift cards, etc
+  async sendEmail(emailData: {
+    to: string;
+    subject: string;
+    template: string;
+    context: any;
+  }) {
+    console.log(`
+📧 ===== EMAIL NOTIFICATION =====
+To: ${emailData.to}
+Subject: ${emailData.subject}
+Template: ${emailData.template}
+
+Context: ${JSON.stringify(emailData.context, null, 2)}
+
+(Email would be sent via email service provider in production)
+====================================
+    `);
+    return { success: true };
+  }
 }

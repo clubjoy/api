@@ -1,10 +1,12 @@
-import { Controller, Post, Get, Body, Param, UseGuards, Req, RawBodyRequest } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, UseGuards, Req, RawBodyRequest } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto, RefundPaymentDto, CreatePaymentIntentDto } from './dto';
-import { JwtAuthGuard } from '../auth/guards';
+import { JwtAuthGuard, RolesGuard } from '../auth/guards';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { Role } from '@prisma/client';
 
 @ApiTags('payments')
 @Controller('payments')
@@ -12,6 +14,18 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 @ApiBearerAuth()
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
+
+  @Get()
+  @UseGuards(RolesGuard)
+  @Roles(Role.OWNER)
+  @ApiOperation({ summary: 'Get all payments (OWNER only)' })
+  findAll(
+    @Query('status') status?: string,
+    @Query('skip') skip?: number,
+    @Query('take') take?: number,
+  ) {
+    return this.paymentsService.findAll({ status, skip, take });
+  }
 
   @Post('process')
   @ApiOperation({ summary: 'Process a payment (MOCKED)' })

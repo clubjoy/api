@@ -249,7 +249,7 @@ export class StripeService {
       });
 
       // Create promotion code
-      const promotionCode = await this.stripe.promotionCodes.create({
+      const promotionCode = await (this.stripe.promotionCodes as any).create({
         coupon: coupon.id,
         code: params.code.toUpperCase(),
       });
@@ -319,9 +319,9 @@ export class StripeService {
       return {
         data: await Promise.all(
           promotionCodes.data.map(async (pc) => {
-            const coupon = typeof pc.coupon === 'string'
-              ? await this.stripe.coupons.retrieve(pc.coupon)
-              : pc.coupon;
+            const coupon = typeof (pc as any).coupon === 'string'
+              ? await this.stripe.coupons.retrieve((pc as any).coupon)
+              : (pc as any).coupon;
 
             return {
               id: pc.id,
