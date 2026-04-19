@@ -104,16 +104,12 @@ export class UsersService {
     return { message: 'User successfully deleted' };
   }
 
-  // Host Management Features
+  // User/Host Management Features
   async blockHost(id: string, blockedBy: string, reason: string) {
     const user = await this.findOne(id);
 
-    if (user.role !== Role.HOST) {
-      throw new ConflictException('Only hosts can be blocked');
-    }
-
     if (user.isBlocked) {
-      throw new ConflictException('Host is already blocked');
+      throw new ConflictException('User is already blocked');
     }
 
     const updated = await this.prisma.user.update({
@@ -133,7 +129,7 @@ export class UsersService {
     const user = await this.findOne(id);
 
     if (!user.isBlocked) {
-      throw new ConflictException('Host is not blocked');
+      throw new ConflictException('User is not blocked');
     }
 
     const updated = await this.prisma.user.update({

@@ -177,13 +177,16 @@ export class BookingsService {
   async findAll(userId: string, userRole: string) {
     const where: any = {};
 
-    if (userRole === 'HOST' || userRole === 'OWNER') {
-      // Show bookings for experiences hosted by this user
+    if (userRole === 'OWNER') {
+      // OWNER sees all bookings - no filter
+      // where remains empty to fetch all
+    } else if (userRole === 'HOST') {
+      // HOST sees only bookings for their experiences
       where.experience = {
         hostId: userId,
       };
     } else {
-      // Show bookings made by this user
+      // USER sees only their own bookings
       where.userId = userId;
     }
 
