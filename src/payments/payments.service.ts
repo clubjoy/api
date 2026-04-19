@@ -23,8 +23,9 @@ export class PaymentsService {
       throw new NotFoundException('Booking not found');
     }
 
-    if (booking.status !== 'ACCEPTED') {
-      throw new BadRequestException('Booking must be in ACCEPTED state to process payment');
+    // Allow payment for PENDING (guest checkout) or ACCEPTED (host accepted) bookings
+    if (booking.status !== 'ACCEPTED' && booking.status !== 'PENDING') {
+      throw new BadRequestException('Booking must be in ACCEPTED or PENDING state to process payment');
     }
 
     // Check if payment already exists
@@ -205,9 +206,9 @@ Status: PROCESSING -> COMPLETED
       }
     }
 
-    // Check booking status - allow ACCEPTED bookings for payment
-    if (booking.status !== 'ACCEPTED') {
-      throw new BadRequestException('Booking must be in ACCEPTED state to create payment intent');
+    // Check booking status - allow PENDING (guest checkout) or ACCEPTED (host accepted) bookings
+    if (booking.status !== 'ACCEPTED' && booking.status !== 'PENDING') {
+      throw new BadRequestException('Booking must be in ACCEPTED or PENDING state to create payment intent');
     }
 
     // Check if payment already exists
@@ -216,6 +217,11 @@ Status: PROCESSING -> COMPLETED
     });
 
     if (existingPayment) {
+      // If payment is already completed, don't allow another payment
+      if (existingPayment.status === 'COMPLETED') {
+        throw new BadRequestException('Payment already completed for this booking');
+      }
+
       // If payment exists and has a payment intent, retrieve it
       if (existingPayment.paymentIntentId) {
         const paymentIntent = await this.stripe.retrievePaymentIntent(
@@ -227,7 +233,7 @@ Status: PROCESSING -> COMPLETED
           throw new BadRequestException('Payment already completed for this booking');
         }
 
-        // If payment intent is still valid, return existing
+        // If payment intent is still valid, return existing (allow retry)
         if (['requires_payment_method', 'requires_confirmation', 'requires_action'].includes(paymentIntent.status)) {
           return {
             clientSecret: paymentIntent.client_secret,
@@ -397,11 +403,10 @@ Status: PROCESSING -> COMPLETED
     const newUser = await this.prisma.user.create({
       data: {
         email,
-        password: hashedPassword,
+        passwordHash: hashedPassword,
         firstName,
         lastName,
         role: 'USER',
-        emailVerified: true, // Auto-verify for guest checkout
       },
     });
 

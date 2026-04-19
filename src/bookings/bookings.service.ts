@@ -24,7 +24,47 @@ export class BookingsService {
     private payments: PaymentsService,
   ) {}
 
-  async create(userId: string, dto: CreateBookingDto) {
+  async create(userId: string | null, dto: CreateBookingDto) {
+    // For guest checkout, validate guest information
+    if (!userId) {
+      if (!dto.guestEmail || !dto.guestFirstName || !dto.guestLastName) {
+        throw new BadRequestException(
+          'Guest email, first name, and last name are required for guest checkout'
+        );
+      }
+
+      // Check if user with this email already exists
+      const existingUser = await this.prisma.user.findUnique({
+        where: { email: dto.guestEmail },
+      });
+
+      if (existingUser) {
+        // Use existing user's ID
+        userId = existingUser.id;
+      } else {
+        // Create a temporary guest user account with random password
+        const crypto = require('crypto');
+        const randomPassword = crypto.randomBytes(32).toString('hex');
+        const bcrypt = require('bcrypt');
+        const hashedPassword = await bcrypt.hash(randomPassword, 10);
+
+        const guestUser = await this.prisma.user.create({
+          data: {
+            email: dto.guestEmail,
+            firstName: dto.guestFirstName,
+            lastName: dto.guestLastName,
+            phone: dto.guestPhone,
+            passwordHash: hashedPassword,
+            role: 'USER',
+          },
+        });
+        userId = guestUser.id;
+
+        // TODO: Send welcome email with password reset link
+        console.log(`Guest user created: ${dto.guestEmail} - Send password reset email`);
+      }
+    }
+
     // Verify experience exists and is published
     const experience = await this.prisma.experience.findUnique({
       where: { id: dto.experienceId },

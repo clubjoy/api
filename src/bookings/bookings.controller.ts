@@ -23,11 +23,11 @@ export class BookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
   @Post()
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a new booking (USER)' })
-  create(@CurrentUser() user: any, @Body() dto: CreateBookingDto) {
-    return this.bookingsService.create(user.id, dto);
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: 'Create a new booking (authenticated USER or guest)' })
+  create(@Req() req: any, @Body() dto: CreateBookingDto) {
+    const user = req.user;
+    return this.bookingsService.create(user?.id || null, dto);
   }
 
   @Get()

@@ -32,6 +32,31 @@ export class StripeService {
     customerId?: string;
     description?: string;
   }): Promise<Stripe.PaymentIntent> {
+    const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
+
+    // Use mock mode if Stripe key is placeholder or invalid
+    if (!secretKey || secretKey === 'sk_test_placeholder' || secretKey.includes('placeholder')) {
+      this.logger.log(`🎭 MOCK MODE: Creating fake payment intent for booking ${params.bookingId}`);
+
+      // Return a mock payment intent
+      const mockPaymentIntent = {
+        id: `pi_mock_${Date.now()}`,
+        object: 'payment_intent',
+        amount: Math.round(params.amount * 100),
+        currency: params.currency.toLowerCase(),
+        status: 'requires_payment_method',
+        client_secret: `pi_mock_${Date.now()}_secret_${Math.random().toString(36).substr(2, 9)}`,
+        metadata: {
+          bookingId: params.bookingId,
+        },
+        description: params.description || `ClubJoys Booking ${params.bookingId}`,
+        created: Math.floor(Date.now() / 1000),
+        livemode: false,
+      } as any;
+
+      return mockPaymentIntent;
+    }
+
     try {
       const paymentIntent = await this.stripe.paymentIntents.create({
         amount: Math.round(params.amount * 100), // Convert to cents
@@ -73,6 +98,20 @@ export class StripeService {
    * Retrieve a payment intent
    */
   async retrievePaymentIntent(paymentIntentId: string): Promise<Stripe.PaymentIntent> {
+    // Mock mode for placeholder keys
+    if (paymentIntentId.startsWith('pi_mock_')) {
+      this.logger.log(`🎭 MOCK MODE: Retrieving mock payment intent ${paymentIntentId}`);
+      return {
+        id: paymentIntentId,
+        object: 'payment_intent',
+        status: 'succeeded',
+        amount: 10000,
+        currency: 'eur',
+        created: Math.floor(Date.now() / 1000),
+        livemode: false,
+      } as any;
+    }
+
     try {
       return await this.stripe.paymentIntents.retrieve(paymentIntentId);
     } catch (error) {

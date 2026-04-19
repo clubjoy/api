@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNumber, IsDateString, Min, IsOptional } from 'class-validator';
+import { IsString, IsNumber, IsDateString, Min, IsOptional, IsEmail } from 'class-validator';
 
 export class CreateBookingDto {
   @ApiProperty({ example: 'exp_123' })
@@ -27,4 +27,25 @@ export class CreateBookingDto {
   @IsString()
   @IsOptional()
   specialRequests?: string;
+
+  // Guest checkout fields (required if not authenticated)
+  @ApiProperty({ example: 'guest@example.com', required: false, description: 'Required for guest checkout' })
+  @IsEmail()
+  @IsOptional()
+  guestEmail?: string;
+
+  @ApiProperty({ example: 'John', required: false, description: 'Required for guest checkout' })
+  @IsString()
+  @IsOptional()
+  guestFirstName?: string;
+
+  @ApiProperty({ example: 'Doe', required: false, description: 'Required for guest checkout' })
+  @IsString()
+  @IsOptional()
+  guestLastName?: string;
+
+  @ApiProperty({ example: '+1234567890', required: false, description: 'Optional guest phone' })
+  @IsString()
+  @IsOptional()
+  guestPhone?: string;
 }

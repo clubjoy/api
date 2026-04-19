@@ -46,10 +46,15 @@ export class ExperiencesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.HOST, Role.OWNER)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get my experiences (HOST only)' })
+  @ApiOperation({ summary: 'Get my experiences (HOST sees own, OWNER sees all)' })
   @ApiQuery({ name: 'status', enum: ExperienceStatus, required: false })
   getMyExperiences(@CurrentUser() user: any, @Query('status') status?: ExperienceStatus) {
-    return this.experiencesService.findAll({ hostId: user.id, status });
+    // OWNER sees all experiences, HOST sees only their own
+    const filters: any = { status };
+    if (user.role !== Role.OWNER) {
+      filters.hostId = user.id;
+    }
+    return this.experiencesService.findAll(filters);
   }
 
   @Get('slug/:slug')
