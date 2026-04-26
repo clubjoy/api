@@ -25,14 +25,9 @@ export class BookingsService {
   ) {}
 
   async create(userId: string | null, dto: CreateBookingDto) {
-    // For guest checkout, validate guest information
-    if (!userId) {
-      if (!dto.guestEmail || !dto.guestFirstName || !dto.guestLastName) {
-        throw new BadRequestException(
-          'Guest email, first name, and last name are required for guest checkout'
-        );
-      }
-
+    // Allow anonymous bookings - guest info will be collected at payment time
+    // If guest info is provided (old flow), use it to create/find user
+    if (!userId && dto.guestEmail && dto.guestFirstName && dto.guestLastName) {
       // Check if user with this email already exists
       const existingUser = await this.prisma.user.findUnique({
         where: { email: dto.guestEmail },
@@ -63,6 +58,33 @@ export class BookingsService {
         // TODO: Send welcome email with password reset link
         console.log(`Guest user created: ${dto.guestEmail} - Send password reset email`);
       }
+    }
+
+    // If still no userId, create/get a placeholder "guest" user
+    // The booking will be linked to the real user when they pay
+    if (!userId) {
+      const guestPlaceholderEmail = 'guest@placeholder.local';
+      let guestPlaceholder = await this.prisma.user.findUnique({
+        where: { email: guestPlaceholderEmail },
+      });
+
+      if (!guestPlaceholder) {
+        const crypto = require('crypto');
+        const bcrypt = require('bcrypt');
+        const hashedPassword = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+
+        guestPlaceholder = await this.prisma.user.create({
+          data: {
+            email: guestPlaceholderEmail,
+            firstName: 'Guest',
+            lastName: 'User',
+            passwordHash: hashedPassword,
+            role: 'USER',
+          },
+        });
+      }
+
+      userId = guestPlaceholder.id;
     }
 
     // Verify experience exists and is published
