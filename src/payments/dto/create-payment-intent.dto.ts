@@ -20,4 +20,19 @@ export class CreatePaymentIntentDto {
   @IsEmail()
   @IsOptional()
   guestEmail?: string;
+
+  @ApiProperty({ description: 'Guest first name for guest checkout', required: false })
+  @IsString()
+  @IsOptional()
+  guestFirstName?: string;
+
+  @ApiProperty({ description: 'Guest last name for guest checkout', required: false })
+  @IsString()
+  @IsOptional()
+  guestLastName?: string;
+
+  @ApiProperty({ description: 'Guest phone for guest checkout', required: false })
+  @IsString()
+  @IsOptional()
+  guestPhone?: string;
 }

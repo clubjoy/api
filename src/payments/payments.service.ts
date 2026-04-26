@@ -255,7 +255,7 @@ Status: PROCESSING -> COMPLETED
       description: `Booking ${booking.bookingNumber} - ${booking.experience.title}`,
     });
 
-    // Prepare metadata - include guest email if provided
+    // Prepare metadata - include guest info if provided
     const metadata: any = {
       stripePaymentIntent: paymentIntent.id,
       clientSecret: paymentIntent.client_secret,
@@ -263,6 +263,9 @@ Status: PROCESSING -> COMPLETED
 
     if (dto.guestEmail) {
       metadata.guestEmail = dto.guestEmail;
+      metadata.guestFirstName = dto.guestFirstName;
+      metadata.guestLastName = dto.guestLastName;
+      metadata.guestPhone = dto.guestPhone;
       metadata.isGuestCheckout = true;
     }
 
@@ -332,11 +335,14 @@ Status: PROCESSING -> COMPLETED
     const metadata = payment.metadata as any;
     const isGuestCheckout = metadata?.isGuestCheckout;
     const guestEmail = metadata?.guestEmail;
+    const guestFirstName = metadata?.guestFirstName;
+    const guestLastName = metadata?.guestLastName;
+    const guestPhone = metadata?.guestPhone;
 
     // If guest checkout, create or find user account
     let userId = payment.booking.userId;
     if (isGuestCheckout && guestEmail) {
-      userId = await this.handleGuestCheckout(guestEmail, payment.booking);
+      userId = await this.handleGuestCheckout(guestEmail, guestFirstName, guestLastName, guestPhone);
 
       // Update booking with the user ID
       await this.prisma.booking.update({
@@ -379,7 +385,7 @@ Status: PROCESSING -> COMPLETED
   /**
    * Handle guest checkout by creating or finding user account
    */
-  private async handleGuestCheckout(email: string, booking: any): Promise<string> {
+  private async handleGuestCheckout(email: string, firstName?: string, lastName?: string, phone?: string): Promise<string> {
     // Check if user already exists with this email
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
@@ -395,17 +401,18 @@ Status: PROCESSING -> COMPLETED
     const randomPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
     const hashedPassword = await bcrypt.hash(randomPassword, 10);
 
-    // Extract name from booking or use default
-    const firstName = booking.user?.firstName || 'Guest';
-    const lastName = booking.user?.lastName || 'User';
+    // Use provided names or defaults
+    const userFirstName = firstName || 'Guest';
+    const userLastName = lastName || 'User';
 
     // Create new user account
     const newUser = await this.prisma.user.create({
       data: {
         email,
         passwordHash: hashedPassword,
-        firstName,
-        lastName,
+        firstName: userFirstName,
+        lastName: userLastName,
+        phone: phone || undefined,
         role: 'USER',
       },
     });
@@ -416,7 +423,9 @@ Status: PROCESSING -> COMPLETED
     // For now, just log it
     this.logger.log(`
       ===== GUEST ACCOUNT CREATED =====
+      Name: ${userFirstName} ${userLastName}
       Email: ${email}
+      Phone: ${phone || 'N/A'}
       Password: ${randomPassword}
       Please send welcome email to user
       =================================
