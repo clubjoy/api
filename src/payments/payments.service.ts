@@ -526,4 +526,110 @@ Status: PROCESSING -> COMPLETED
       hasMore: (params?.skip || 0) + (params?.take || 100) < total,
     };
   }
+
+  /**
+   * Handle Stripe webhook events
+   */
+  async handleStripeWebhook(rawBody: Buffer, signature: string) {
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!webhookSecret || webhookSecret === 'whsec_placeholder') {
+      this.logger.warn('Stripe webhook secret not configured, skipping signature verification');
+      // In development/test, allow webhooks without verification
+      const event = JSON.parse(rawBody.toString());
+      return this.processStripeEvent(event);
+    }
+
+    // Verify webhook signature
+    const event = this.stripe.verifyWebhookSignature(
+      rawBody,
+      signature,
+      webhookSecret,
+    );
+
+    return this.processStripeEvent(event);
+  }
+
+  /**
+   * Process Stripe webhook event
+   */
+  private async processStripeEvent(event: any) {
+    this.logger.log(`Processing Stripe event: ${event.type}`);
+
+    switch (event.type) {
+      case 'payment_intent.succeeded':
+        const paymentIntent = event.data.object;
+        await this.handlePaymentSuccess(paymentIntent.id);
+        break;
+
+      case 'payment_intent.payment_failed':
+        const failedIntent = event.data.object;
+        await this.handlePaymentFailed(failedIntent.id);
+        break;
+
+      case 'payment_intent.canceled':
+        const canceledIntent = event.data.object;
+        await this.handlePaymentCanceled(canceledIntent.id);
+        break;
+
+      default:
+        this.logger.log(`Unhandled event type: ${event.type}`);
+    }
+
+    return event;
+  }
+
+  /**
+   * Handle failed payment
+   */
+  private async handlePaymentFailed(paymentIntentId: string) {
+    const payment = await this.prisma.payment.findFirst({
+      where: { paymentIntentId },
+    });
+
+    if (!payment) {
+      this.logger.warn(`Payment not found for failed payment intent: ${paymentIntentId}`);
+      return;
+    }
+
+    await this.prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: 'FAILED',
+        metadata: {
+          ...((payment.metadata as object) || {}),
+          failedAt: new Date().toISOString(),
+        },
+      },
+    });
+
+    this.logger.log(`Payment ${payment.id} marked as failed`);
+  }
+
+  /**
+   * Handle canceled payment
+   */
+  private async handlePaymentCanceled(paymentIntentId: string) {
+    const payment = await this.prisma.payment.findFirst({
+      where: { paymentIntentId },
+    });
+
+    if (!payment) {
+      this.logger.warn(`Payment not found for canceled payment intent: ${paymentIntentId}`);
+      return;
+    }
+
+    await this.prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: 'FAILED',
+        metadata: {
+          ...((payment.metadata as object) || {}),
+          canceledAt: new Date().toISOString(),
+        },
+      },
+    });
+
+    this.logger.log(`Payment ${payment.id} marked as canceled`);
+  }
 }

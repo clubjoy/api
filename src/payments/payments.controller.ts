@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Query, UseGuards, Req, RawBodyRequest } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, UseGuards, Req, RawBodyRequest, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 import { PaymentsService } from './payments.service';
@@ -75,8 +75,21 @@ export class PaymentsController {
   @Post('webhook')
   @ApiOperation({ summary: 'Handle Stripe webhook events' })
   async handleWebhook(@Req() req: RawBodyRequest<Request>) {
-    // This endpoint will be implemented for webhook handling
-    // For now, return a placeholder
-    return { received: true };
+    const signature = req.headers['stripe-signature'] as string;
+
+    if (!signature) {
+      throw new BadRequestException('Missing stripe-signature header');
+    }
+
+    try {
+      const event = await this.paymentsService.handleStripeWebhook(
+        req.rawBody,
+        signature,
+      );
+
+      return { received: true, eventType: event.type };
+    } catch (error) {
+      throw new BadRequestException(`Webhook Error: ${error.message}`);
+    }
   }
 }
